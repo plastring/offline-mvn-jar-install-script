@@ -1,17 +1,16 @@
 package org.plastring;
 
-import com.sun.org.apache.xerces.internal.xni.parser.XMLParserConfiguration;
-import org.dom4j.Document;
-import org.dom4j.DocumentException;
-import org.dom4j.Element;
-import org.dom4j.io.SAXReader;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.XML;
 
-import javax.xml.stream.XMLInputFactory;
-import java.io.File;
+import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Hello world!
+ * generate shell script to install local jar package by maven
+ * <pre>mvn install:install-file -Dfile=path-to-file -DgroupId=xxx -DartifactId=xxx -Dversion -Dpackaging=jar</pre>
  *
  */
 public class App 
@@ -19,34 +18,46 @@ public class App
     public static void main( String[] args )
     {
         String pomFilePath = System.getProperty("user.dir") + File.separator + args[0];
-        System.out.println(pomFilePath);
+        System.out.println("xml file: " + pomFilePath);
 
+        StringBuilder xmlString = new StringBuilder();
         File pomFile = new File(pomFilePath);
-        Document xmlDoc = null;
-        try {
-            xmlDoc = new SAXReader().read(pomFile);
-        } catch (DocumentException e) {
+
+        try (BufferedReader br = new BufferedReader(new FileReader(pomFile))) {
+            String line = null;
+
+            while ((line = br.readLine() )!= null) {
+
+                xmlString.append(line);
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
-        Element xmlRoot = xmlDoc.getRootElement();
+        JSONObject xmlJSONObject = XML.toJSONObject(xmlString.toString());
 
-        List<Element> childElements = xmlRoot.elements();
+        generateInstallScript(xmlJSONObject);
+    }
 
-        List<Element> dependencies = null;
-        for (Element ele : childElements) {
-//            System.out.println(ele.getName());
-            if("dependencies".equals(ele.getName())) {
-                dependencies = ele.elements();
-                break;
-            }
+    public static List<String> generateInstallScript(JSONObject xmlJSONObject) {
+
+        List<String> commandStrings = new ArrayList<>();
+
+        String formatString = "mvn install:install-file -Dfile=%s -DgroupId=%s -DartifactId=%s -Dversion=%s -Dpackaging=jar%n";
+
+        JSONArray dependencies = xmlJSONObject.getJSONObject("project").getJSONObject("dependencies").getJSONArray("dependency");
+
+        for (Object obj: dependencies) {
+            JSONObject jsonObject = (JSONObject) obj;
+            String filename = String.format("%s-%s.jar",jsonObject.get("artifactId"), jsonObject.get("version"));
+            String commandString = String.format(formatString, filename, jsonObject.get("groupId"), jsonObject.get("artifactId"), jsonObject.get("version"));
+            System.out.format(commandString);
+            commandStrings.add(commandString);
         }
 
-        for (Element ele: dependencies) {
-            for (Object obj : ele.elements()) {
-                Element element = (Element) obj;
-                System.out.println(element.getName());
-            }
-        }
+        return commandStrings;
     }
 }
