@@ -11,13 +11,11 @@ import java.util.List;
 /**
  * generate shell script to install local jar package by maven
  * <pre>mvn install:install-file -Dfile=path-to-file -DgroupId=xxx -DartifactId=xxx -Dversion -Dpackaging=jar</pre>
- *
  */
-public class App 
-{
-    public static void main( String[] args )
-    {
-        String pomFilePath = System.getProperty("user.dir") + File.separator + args[0];
+public class App {
+    public static void main(String[] args) {
+        String pomFilePath =
+                System.getProperty("user.dir") + File.separator + args[0];
         System.out.println("xml file: " + pomFilePath);
 
         StringBuilder xmlString = new StringBuilder();
@@ -26,7 +24,7 @@ public class App
         try (BufferedReader br = new BufferedReader(new FileReader(pomFile))) {
             String line = null;
 
-            while ((line = br.readLine() )!= null) {
+            while ((line = br.readLine()) != null) {
 
                 xmlString.append(line);
             }
@@ -39,7 +37,20 @@ public class App
 
         JSONObject xmlJSONObject = XML.toJSONObject(xmlString.toString());
 
-        generateInstallScript(xmlJSONObject);
+        List<String> scriptStrings = generateInstallScript(xmlJSONObject);
+
+        String scriptFilename = System.getProperty("user.dir") + File.separator + "install-jar.sh";
+        try (BufferedWriter wr = new BufferedWriter(
+                new FileWriter(new File(scriptFilename)))) {
+            wr.write("#/bin/bash\n");
+            for(String str : scriptStrings) {
+                System.out.format("writ to file: " + str);
+                wr.write(str);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static List<String> generateInstallScript(JSONObject xmlJSONObject) {
@@ -48,12 +59,18 @@ public class App
 
         String formatString = "mvn install:install-file -Dfile=%s -DgroupId=%s -DartifactId=%s -Dversion=%s -Dpackaging=jar%n";
 
-        JSONArray dependencies = xmlJSONObject.getJSONObject("project").getJSONObject("dependencies").getJSONArray("dependency");
+        JSONArray dependencies = xmlJSONObject.getJSONObject("project")
+                .getJSONObject("dependencies").getJSONArray("dependency");
 
-        for (Object obj: dependencies) {
+        for (Object obj : dependencies) {
             JSONObject jsonObject = (JSONObject) obj;
-            String filename = String.format("%s-%s.jar",jsonObject.get("artifactId"), jsonObject.get("version"));
-            String commandString = String.format(formatString, filename, jsonObject.get("groupId"), jsonObject.get("artifactId"), jsonObject.get("version"));
+            String filename = String
+                    .format("%s-%s.jar", jsonObject.get("artifactId"),
+                            jsonObject.get("version"));
+            String commandString = String
+                    .format(formatString, filename, jsonObject.get("groupId"),
+                            jsonObject.get("artifactId"),
+                            jsonObject.get("version"));
             System.out.format(commandString);
             commandStrings.add(commandString);
         }
